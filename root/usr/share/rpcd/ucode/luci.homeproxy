@@ -268,7 +268,7 @@ const methods = {
 				return { result: false, latency: null, error: 'service_not_running' };
 
 			/* 2. Target candidate tags for real proxy test */
-			let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('cfg-%s-out', id), id];
+			let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('%s-out', id), sprintf('cfg-%s-out', id), id];
 
 			/* 3. Determine test URL (HTTP 204 end-to-end) */
 			let test_url = 'http://www.google.com/generate_204';
