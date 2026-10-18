@@ -259,15 +259,17 @@ const methods = {
 
 			/* 1. If node is an active outbound in sing-box, query clash API for end-to-end delay */
 			if (id) {
-				let tag = sprintf('cfg-%s-out', id);
-				let pipe = popen(sprintf('/usr/bin/curl -s -m 3 "http://127.0.0.1:9090/proxies/%s/delay?timeout=2500&url=http://www.google.com/generate_204" 2>/dev/null', tag));
-				if (pipe) {
-					let content = pipe.read('all');
-					pipe.close();
-					if (content) {
-						let res = json(content);
-						if (res?.delay)
-							return { result: true, latency: res.delay, type: 'proxy' };
+				let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('cfg-%s-out', id), id];
+				for (let tag in tags) {
+					let pipe = popen(sprintf('/usr/bin/curl -s -m 3 "http://127.0.0.1:9090/proxies/%s/delay?timeout=2500&url=http://www.google.com/generate_204" 2>/dev/null', tag));
+					if (pipe) {
+						let content = pipe.read('all');
+						pipe.close();
+						if (content) {
+							let res = json(content);
+							if (res?.delay)
+								return { result: true, latency: res.delay, type: 'proxy' };
+						}
 					}
 				}
 			}

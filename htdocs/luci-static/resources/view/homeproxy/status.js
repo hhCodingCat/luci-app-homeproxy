@@ -56,7 +56,7 @@ function getNodeStat(o) {
 			btn.disabled = true;
 			ele.style.setProperty('color', '#108ee9');
 			ele.textContent = _('Testing...');
-			return callNodeStatus(main_node, address, port).then((ret) => {
+			return callNodeStatus(main_node, address || '', port ? ('' + port) : '').then((ret) => {
 				btn.disabled = false;
 				if (ret && ret.result && ret.latency !== null) {
 					let color = ret.latency < 300 ? 'green' : (ret.latency < 800 ? '#e6a23c' : 'red');

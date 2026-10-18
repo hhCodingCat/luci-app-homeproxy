@@ -428,7 +428,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 						sp.textContent = _('Testing...');
 					}
 					b.disabled = true;
-					return callNodeStatus(sec, addr, prt).then(function(res) {
+					return callNodeStatus(sec, addr || '', prt ? ('' + prt) : '').then(function(res) {
 						b.disabled = false;
 						if (sp) {
 							if (res && res.result && res.latency !== null) {
@@ -518,6 +518,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 	o.rmempty = false;
 
 	o = s.option(form.DummyValue, '_status', _('Status'));
+	o.editable = true;
 	o.modalonly = false;
 	o.rawhtml = true;
 	o.cfgvalue = function(section_id) {
@@ -546,7 +547,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 				btn.disabled = true;
 				span.style.color = '#108ee9';
 				span.textContent = _('Testing...');
-				return callNodeStatus(section_id, address, port).then(function(res) {
+				return callNodeStatus(section_id, address || '', port ? ('' + port) : '').then(function(res) {
 					btn.disabled = false;
 					if (res && res.result && res.latency !== null) {
 						let color = res.latency < 300 ? '#28a745' : (res.latency < 800 ? '#e6a23c' : '#dc3545');
