@@ -770,6 +770,34 @@ if (!isEmpty(main_node)) {
 	}
 }
 
+/* Ensure all configured nodes are present in outbounds for latency testing */
+uci.foreach(uciconfig, 'node', (node_cfg) => {
+	let sid = node_cfg['.name'];
+	let tag = 'cfg-' + sid + '-out';
+	let found = false;
+	for (let ob in config.outbounds) {
+		if (ob.tag === tag) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		if (node_cfg.type === 'wireguard') {
+			let ep = generate_endpoint(node_cfg);
+			if (ep) {
+				ep.tag = tag;
+				if (isEmpty(config.endpoints))
+					config.endpoints = [];
+				push(config.endpoints, ep);
+			}
+		} else {
+			let ob = generate_outbound(node_cfg);
+			if (ob)
+				push(config.outbounds, ob);
+		}
+	}
+});
+
 if (isEmpty(config.endpoints))
 	config.endpoints = null;
 /* Outbound end */

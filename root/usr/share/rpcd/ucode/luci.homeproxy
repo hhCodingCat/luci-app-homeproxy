@@ -8,6 +8,7 @@
 'use strict';
 
 import { access, error, lstat, popen, readfile, writefile } from 'fs';
+import { cursor } from 'uci';
 
 /* Kanged from ucode/luci */
 function shellquote(s) {
@@ -251,57 +252,44 @@ const methods = {
 	},
 
 	node_status: {
-		args: { id: 'id', address: 'address', port: 'port' },
+		args: { id: 'id' },
 		call: function(req) {
 			let id = req.args?.id;
-			let address = req.args?.address;
-			let port = req.args?.port;
+			if (!id)
+				return { result: false, latency: null, error: 'missing_id' };
 
-			/* 1. If node is an active outbound in sing-box, query clash API for end-to-end delay */
-			if (id) {
-				let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('cfg-%s-out', id), id];
-				for (let tag in tags) {
-					let pipe = popen(sprintf('/usr/bin/curl -s -m 3 "http://127.0.0.1:9090/proxies/%s/delay?timeout=2500&url=http://www.google.com/generate_204" 2>/dev/null', tag));
-					if (pipe) {
-						let content = pipe.read('all');
-						pipe.close();
-						if (content) {
-							let res = json(content);
-							if (res?.delay)
-								return { result: true, latency: res.delay, type: 'proxy' };
-						}
-					}
-				}
-			}
+			/* 1. Check if HomeProxy (sing-box) clash API is running */
+			let check_api = popen('/usr/bin/curl -s -m 1 "http://127.0.0.1:9090/version" 2>/dev/null');
+			if (!check_api)
+				return { result: false, latency: null, error: 'service_not_running' };
+			let api_ver = check_api.read('all');
+			check_api.close();
+			if (!api_ver || !match(api_ver, /"version"/))
+				return { result: false, latency: null, error: 'service_not_running' };
 
-			/* 2. Direct TCP connect latency check using tcping or curl */
-			if (address && port) {
-				address = replace(address, /[\[\]]/g, '');
-				let port_str = sprintf('%s', port);
-				if (match(address, /^[a-zA-Z0-9_\.\-:]+$/) && match(port_str, /^[0-9]+$/)) {
-					if (access('/usr/bin/tcping')) {
-						let p = popen(sprintf('/usr/bin/tcping -p %s -c 1 -t 2 %s 2>&1', port_str, shellquote(address)));
-						if (p) {
-							for (let line = p.read('line'); length(line); line = p.read('line')) {
-								let m = match(line, /time=([0-9\.]+)\s*ms/);
-								if (m) {
-									p.close();
-									return { result: true, latency: +m[1], type: 'tcp' };
-								}
-							}
-							p.close();
-						}
-					} else {
-						let p = popen(sprintf('/usr/bin/curl -k -so /dev/null -w "%%{time_connect}\\n" --connect-timeout 2 "http://%s:%s" 2>&1', address, port_str));
-						if (p) {
-							let line = p.read('line');
-							p.close();
-							if (line) {
-								let t = +trim(line);
-								if (t > 0)
-									return { result: true, latency: int(t * 1000), type: 'tcp' };
-							}
-						}
+			/* 2. Target candidate tags for real proxy test */
+			let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('cfg-%s-out', id), id];
+
+			/* 3. Determine test URL (HTTP 204 end-to-end) */
+			let test_url = 'http://www.google.com/generate_204';
+			try {
+				const uci_cursor = cursor();
+				uci_cursor.load('homeproxy');
+				let custom_url = uci_cursor.get('homeproxy', 'config', 'urltest_url');
+				if (custom_url)
+					test_url = custom_url;
+			} catch (e) {}
+
+			/* 4. True proxy delay test via clash_api */
+			for (let tag in tags) {
+				let pipe = popen(sprintf('/usr/bin/curl -s -m 4 "http://127.0.0.1:9090/proxies/%s/delay?timeout=3000&url=%s" 2>/dev/null', tag, test_url));
+				if (pipe) {
+					let content = pipe.read('all');
+					pipe.close();
+					if (content) {
+						let res = json(content);
+						if (res?.delay)
+							return { result: true, latency: res.delay, type: 'proxy' };
 					}
 				}
 			}

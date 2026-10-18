@@ -18,7 +18,7 @@
 const callNodeStatus = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'node_status',
-	params: ['id', 'address', 'port'],
+	params: ['id'],
 	expect: { '': {} }
 });
 
@@ -420,21 +420,22 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 					}
 					let b = tasks[i];
 					let sec = b.getAttribute('data-section');
-					let addr = b.getAttribute('data-address');
-					let prt = b.getAttribute('data-port');
 					let sp = document.getElementById('hp-node-status-' + sec);
 					if (sp) {
 						sp.style.color = '#108ee9';
 						sp.textContent = _('Testing...');
 					}
 					b.disabled = true;
-					return callNodeStatus(sec, addr || '', prt ? ('' + prt) : '').then(function(res) {
+					return callNodeStatus(sec).then(function(res) {
 						b.disabled = false;
 						if (sp) {
 							if (res && res.result && res.latency !== null) {
 								let color = res.latency < 300 ? '#28a745' : (res.latency < 800 ? '#e6a23c' : '#dc3545');
 								sp.style.color = color;
 								sp.textContent = res.latency + ' ms';
+							} else if (res && res.error === 'service_not_running') {
+								sp.style.color = '#dc3545';
+								sp.textContent = _('NOT RUNNING');
 							} else {
 								sp.style.color = '#dc3545';
 								sp.textContent = _('Timeout');
@@ -526,11 +527,6 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 		if (type === 'direct')
 			return E('em', { 'style': 'color: gray;' }, _('Direct'));
 
-		let address = uci.get(data[0], section_id, 'address');
-		let port = uci.get(data[0], section_id, 'port');
-		if (!address || !port)
-			return E('em', { 'style': 'color: gray;' }, '-');
-
 		let span = E('span', {
 			'class': 'hp-node-latency',
 			'id': 'hp-node-status-' + section_id,
@@ -540,19 +536,20 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 		let btn = E('button', {
 			'class': 'btn cbi-button cbi-button-action hp-node-check-btn',
 			'data-section': section_id,
-			'data-address': address,
-			'data-port': port,
 			'style': 'padding: 2px 6px; font-size: 85%;',
 			'click': ui.createHandlerFn(this, function() {
 				btn.disabled = true;
 				span.style.color = '#108ee9';
 				span.textContent = _('Testing...');
-				return callNodeStatus(section_id, address || '', port ? ('' + port) : '').then(function(res) {
+				return callNodeStatus(section_id).then(function(res) {
 					btn.disabled = false;
 					if (res && res.result && res.latency !== null) {
 						let color = res.latency < 300 ? '#28a745' : (res.latency < 800 ? '#e6a23c' : '#dc3545');
 						span.style.color = color;
 						span.textContent = res.latency + ' ms';
+					} else if (res && res.error === 'service_not_running') {
+						span.style.color = '#dc3545';
+						span.textContent = _('NOT RUNNING');
 					} else {
 						span.style.color = '#dc3545';
 						span.textContent = _('Timeout');

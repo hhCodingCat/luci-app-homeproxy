@@ -35,7 +35,7 @@ function getNodeStat(o) {
 	const callNodeStatus = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'node_status',
-		params: ['id', 'address', 'port'],
+		params: ['id'],
 		expect: { '': {} }
 	});
 
@@ -46,8 +46,6 @@ function getNodeStat(o) {
 	}
 
 	let label = uci.get('homeproxy', main_node, 'label') || main_node;
-	let address = uci.get('homeproxy', main_node, 'address');
-	let port = uci.get('homeproxy', main_node, 'port');
 
 	let btn, ele;
 	btn = E('button', {
@@ -56,12 +54,15 @@ function getNodeStat(o) {
 			btn.disabled = true;
 			ele.style.setProperty('color', '#108ee9');
 			ele.textContent = _('Testing...');
-			return callNodeStatus(main_node, address || '', port ? ('' + port) : '').then((ret) => {
+			return callNodeStatus(main_node).then((ret) => {
 				btn.disabled = false;
 				if (ret && ret.result && ret.latency !== null) {
 					let color = ret.latency < 300 ? 'green' : (ret.latency < 800 ? '#e6a23c' : 'red');
 					ele.style.setProperty('color', color);
 					ele.textContent = ret.latency + ' ms';
+				} else if (ret && ret.error === 'service_not_running') {
+					ele.style.setProperty('color', 'red');
+					ele.textContent = _('NOT RUNNING');
 				} else {
 					ele.style.setProperty('color', 'red');
 					ele.textContent = _('Timeout');
