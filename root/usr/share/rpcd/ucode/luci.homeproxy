@@ -275,9 +275,10 @@ const methods = {
 			/* 2. Direct TCP connect latency check using tcping or curl */
 			if (address && port) {
 				address = replace(address, /[\[\]]/g, '');
-				if (match(address, /^[a-zA-Z0-9_\.\-:]+$/) && match(string(port), /^[0-9]+$/)) {
+				let port_str = sprintf('%s', port);
+				if (match(address, /^[a-zA-Z0-9_\.\-:]+$/) && match(port_str, /^[0-9]+$/)) {
 					if (access('/usr/bin/tcping')) {
-						let p = popen(sprintf('/usr/bin/tcping -p %d -c 1 -t 2 %s 2>&1', port, shellquote(address)));
+						let p = popen(sprintf('/usr/bin/tcping -p %s -c 1 -t 2 %s 2>&1', port_str, shellquote(address)));
 						if (p) {
 							for (let line = p.read('line'); length(line); line = p.read('line')) {
 								let m = match(line, /time=([0-9\.]+)\s*ms/);
@@ -289,7 +290,7 @@ const methods = {
 							p.close();
 						}
 					} else {
-						let p = popen(sprintf('/usr/bin/curl -k -so /dev/null -w "%%{time_connect}\\n" --connect-timeout 2 "http://%s:%d" 2>&1', address, port));
+						let p = popen(sprintf('/usr/bin/curl -k -so /dev/null -w "%%{time_connect}\\n" --connect-timeout 2 "http://%s:%s" 2>&1', address, port_str));
 						if (p) {
 							let line = p.read('line');
 							p.close();
