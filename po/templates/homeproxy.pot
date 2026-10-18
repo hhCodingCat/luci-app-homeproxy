@@ -3031,3 +3031,18 @@ msgstr ""
 #: htdocs/luci-static/resources/homeproxy.js:328
 msgid "valid uuid"
 msgstr ""
+
+msgid "Check all"
+msgstr ""
+
+msgid "Testing..."
+msgstr ""
+
+msgid "Timeout"
+msgstr ""
+
+msgid "Main node status"
+msgstr ""
+
+msgid "No node selected"
+msgstr ""

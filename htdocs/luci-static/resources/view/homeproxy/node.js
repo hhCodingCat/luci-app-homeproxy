@@ -7,12 +7,20 @@
 'use strict';
 'require form';
 'require fs';
+'require rpc';
 'require uci';
 'require ui';
 'require view';
 
 'require homeproxy as hp';
 'require tools.widgets as widgets';
+
+const callNodeStatus = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'node_status',
+	params: ['id', 'address', 'port'],
+	expect: { '': {} }
+});
 
 function allowInsecureConfirm(ev, _section_id, value) {
 	if (value === '1' && !confirm(_('Are you sure to allow insecure?')))
@@ -392,7 +400,61 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 	let s = section, o;
 	s.rowcolors = true;
 	s.sortable = true;
-	s.nodescriptions = true;
+	s.nodescriptions = false;
+	s.description = E('div', { 'style': 'margin-bottom: 8px; display: flex; justify-content: flex-end;' }, [
+		E('button', {
+			'class': 'btn cbi-button cbi-button-action',
+			'id': 'hp-check-all-btn',
+			'click': ui.createHandlerFn(this, function() {
+				let buttons = document.querySelectorAll('.hp-node-check-btn');
+				if (!buttons || !buttons.length)
+					return;
+				let btnAll = document.getElementById('hp-check-all-btn');
+				if (btnAll) btnAll.disabled = true;
+
+				let tasks = Array.from(buttons);
+				let runNext = function(i) {
+					if (i >= tasks.length) {
+						if (btnAll) btnAll.disabled = false;
+						return Promise.resolve();
+					}
+					let b = tasks[i];
+					let sec = b.getAttribute('data-section');
+					let addr = b.getAttribute('data-address');
+					let prt = b.getAttribute('data-port');
+					let sp = document.getElementById('hp-node-status-' + sec);
+					if (sp) {
+						sp.style.color = '#108ee9';
+						sp.textContent = _('Testing...');
+					}
+					b.disabled = true;
+					return callNodeStatus(sec, addr, prt).then(function(res) {
+						b.disabled = false;
+						if (sp) {
+							if (res && res.result && res.latency !== null) {
+								let color = res.latency < 300 ? '#28a745' : (res.latency < 800 ? '#e6a23c' : '#dc3545');
+								sp.style.color = color;
+								sp.textContent = res.latency + ' ms';
+							} else {
+								sp.style.color = '#dc3545';
+								sp.textContent = _('Timeout');
+							}
+						}
+					}).catch(function() {
+						b.disabled = false;
+						if (sp) {
+							sp.style.color = '#dc3545';
+							sp.textContent = _('Error');
+						}
+					}).then(function() {
+						return runNext(i + 1);
+					});
+				};
+
+				return runNext(0);
+			})
+		}, [ _('Check all') ])
+	]);
 	s.modaltitle = L.bind(hp.loadModalTitle, this, _('Node'), _('Add a node'), data[0]);
 	s.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
 
@@ -454,6 +516,56 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 	o.datatype = 'port';
 	o.depends({'type': 'direct', '!reverse': true});
 	o.rmempty = false;
+
+	o = s.option(form.DummyValue, '_status', _('Status'));
+	o.modalonly = false;
+	o.rawhtml = true;
+	o.cfgvalue = function(section_id) {
+		let type = uci.get(data[0], section_id, 'type');
+		if (type === 'direct')
+			return E('em', { 'style': 'color: gray;' }, _('Direct'));
+
+		let address = uci.get(data[0], section_id, 'address');
+		let port = uci.get(data[0], section_id, 'port');
+		if (!address || !port)
+			return E('em', { 'style': 'color: gray;' }, '-');
+
+		let span = E('span', {
+			'class': 'hp-node-latency',
+			'id': 'hp-node-status-' + section_id,
+			'style': 'margin-right: 6px; font-weight: 500;'
+		}, '');
+
+		let btn = E('button', {
+			'class': 'btn cbi-button cbi-button-action hp-node-check-btn',
+			'data-section': section_id,
+			'data-address': address,
+			'data-port': port,
+			'style': 'padding: 2px 6px; font-size: 85%;',
+			'click': ui.createHandlerFn(this, function() {
+				btn.disabled = true;
+				span.style.color = '#108ee9';
+				span.textContent = _('Testing...');
+				return callNodeStatus(section_id, address, port).then(function(res) {
+					btn.disabled = false;
+					if (res && res.result && res.latency !== null) {
+						let color = res.latency < 300 ? '#28a745' : (res.latency < 800 ? '#e6a23c' : '#dc3545');
+						span.style.color = color;
+						span.textContent = res.latency + ' ms';
+					} else {
+						span.style.color = '#dc3545';
+						span.textContent = _('Timeout');
+					}
+				}).catch(function() {
+					btn.disabled = false;
+					span.style.color = '#dc3545';
+					span.textContent = _('Error');
+				});
+			})
+		}, [ _('Check') ]);
+
+		return E('div', { 'style': 'display: flex; align-items: center;' }, [ span, btn ]);
+	};
 
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');

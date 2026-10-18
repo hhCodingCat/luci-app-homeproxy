@@ -248,6 +248,63 @@ const methods = {
 			} else
 				return { status: 255, error: 'illegal type' };
 		}
+	},
+
+	node_status: {
+		args: { id: 'id', address: 'address', port: 'port' },
+		call: function(req) {
+			let id = req.args?.id;
+			let address = req.args?.address;
+			let port = req.args?.port;
+
+			/* 1. If node is an active outbound in sing-box, query clash API for end-to-end delay */
+			if (id) {
+				let tag = sprintf('cfg-%s-out', id);
+				let pipe = popen(sprintf('/usr/bin/curl -s -m 3 "http://127.0.0.1:9090/proxies/%s/delay?timeout=2500&url=http://www.google.com/generate_204" 2>/dev/null', tag));
+				if (pipe) {
+					let content = pipe.read('all');
+					pipe.close();
+					if (content) {
+						let res = json(content);
+						if (res?.delay)
+							return { result: true, latency: res.delay, type: 'proxy' };
+					}
+				}
+			}
+
+			/* 2. Direct TCP connect latency check using tcping or curl */
+			if (address && port) {
+				address = replace(address, /[\[\]]/g, '');
+				if (match(address, /^[a-zA-Z0-9_\.\-:]+$/) && match(string(port), /^[0-9]+$/)) {
+					if (access('/usr/bin/tcping')) {
+						let p = popen(sprintf('/usr/bin/tcping -p %d -c 1 -t 2 %s 2>&1', port, shellquote(address)));
+						if (p) {
+							for (let line = p.read('line'); length(line); line = p.read('line')) {
+								let m = match(line, /time=([0-9\.]+)\s*ms/);
+								if (m) {
+									p.close();
+									return { result: true, latency: +m[1], type: 'tcp' };
+								}
+							}
+							p.close();
+						}
+					} else {
+						let p = popen(sprintf('/usr/bin/curl -k -so /dev/null -w "%%{time_connect}\\n" --connect-timeout 2 "http://%s:%d" 2>&1', address, port));
+						if (p) {
+							let line = p.read('line');
+							p.close();
+							if (line) {
+								let t = +trim(line);
+								if (t > 0)
+									return { result: true, latency: int(t * 1000), type: 'tcp' };
+							}
+						}
+					}
+				}
+			}
+
+			return { result: false, latency: null, error: 'timeout' };
+		}
 	}
 };
 

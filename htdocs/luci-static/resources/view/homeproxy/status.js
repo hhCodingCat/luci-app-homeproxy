@@ -31,6 +31,58 @@ const css = '				\
 
 const hp_dir = '/var/run/homeproxy';
 
+function getNodeStat(o) {
+	const callNodeStatus = rpc.declare({
+		object: 'luci.homeproxy',
+		method: 'node_status',
+		params: ['id', 'address', 'port'],
+		expect: { '': {} }
+	});
+
+	let main_node = uci.get('homeproxy', 'config', 'main_node');
+	if (!main_node || main_node === 'nil') {
+		o.default = E('em', { 'style': 'color:gray' }, _('No node selected'));
+		return;
+	}
+
+	let label = uci.get('homeproxy', main_node, 'label') || main_node;
+	let address = uci.get('homeproxy', main_node, 'address');
+	let port = uci.get('homeproxy', main_node, 'port');
+
+	let btn, ele;
+	btn = E('button', {
+		'class': 'btn cbi-button cbi-button-action',
+		'click': ui.createHandlerFn(this, () => {
+			btn.disabled = true;
+			ele.style.setProperty('color', '#108ee9');
+			ele.textContent = _('Testing...');
+			return callNodeStatus(main_node, address, port).then((ret) => {
+				btn.disabled = false;
+				if (ret && ret.result && ret.latency !== null) {
+					let color = ret.latency < 300 ? 'green' : (ret.latency < 800 ? '#e6a23c' : 'red');
+					ele.style.setProperty('color', color);
+					ele.textContent = ret.latency + ' ms';
+				} else {
+					ele.style.setProperty('color', 'red');
+					ele.textContent = _('Timeout');
+				}
+			}).catch(() => {
+				btn.disabled = false;
+				ele.style.setProperty('color', 'red');
+				ele.textContent = _('Error');
+			});
+		})
+	}, [ _('Check') ]);
+
+	ele = E('strong', { 'style': 'color:gray; margin-left: 8px;' }, _('unchecked'));
+
+	o.default = E('div', { 'style': 'cbi-value-field; display: flex; align-items: center;' }, [
+		E('span', { 'style': 'margin-right: 10px; font-weight: 500;' }, [ label ]),
+		btn,
+		ele
+	]);
+}
+
 function getConnStat(o, site) {
 	const callConnStat = rpc.declare({
 		object: 'luci.homeproxy',
@@ -224,6 +276,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 }
 
 return view.extend({
+	load() {
+		return uci.load('homeproxy');
+	},
+
 	render() {
 		let m, s, o;
 
@@ -231,6 +287,9 @@ return view.extend({
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy', _('Connection check'));
 		s.anonymous = true;
+
+		o = s.option(form.DummyValue, '_check_node', _('Main node status'));
+		o.cfgvalue = L.bind(getNodeStat, this, o);
 
 		o = s.option(form.DummyValue, '_check_baidu', _('BaiDu'));
 		o.cfgvalue = L.bind(getConnStat, this, o, 'baidu');

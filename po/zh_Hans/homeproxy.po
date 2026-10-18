@@ -3101,3 +3101,18 @@ msgstr "有效端口值"
 #: htdocs/luci-static/resources/homeproxy.js:328
 msgid "valid uuid"
 msgstr "有效 uuid"
+
+msgid "Check all"
+msgstr "全部测速"
+
+msgid "Testing..."
+msgstr "正在检查..."
+
+msgid "Timeout"
+msgstr "连接超时"
+
+msgid "Main node status"
+msgstr "主节点状态"
+
+msgid "No node selected"
+msgstr "未选择节点"
