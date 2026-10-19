@@ -268,17 +268,23 @@ const methods = {
 				return { result: false, latency: null, error: 'service_not_running' };
 
 			/* 2. Target candidate tags for real proxy test */
-			let tags = (id == 'urltest' || id == 'main-out') ? ['main-out'] : [sprintf('%s-out', id), sprintf('cfg-%s-out', id), id];
-
-			/* 3. Determine test URL (HTTP 204 end-to-end) */
+			let main_node = null;
 			let test_url = 'http://www.google.com/generate_204';
 			try {
 				const uci_cursor = cursor();
 				uci_cursor.load('homeproxy');
+				main_node = uci_cursor.get('homeproxy', 'config', 'main_node');
 				let custom_url = uci_cursor.get('homeproxy', 'config', 'urltest_url');
 				if (custom_url)
 					test_url = custom_url;
 			} catch (e) {}
+
+			let tags = [];
+			if (id === 'urltest' || id === 'main-out' || (main_node && id === main_node))
+				push(tags, 'main-out');
+			push(tags, sprintf('cfg-%s-out', id));
+			push(tags, sprintf('%s-out', id));
+			push(tags, id);
 
 			/* 4. True proxy delay test via clash_api */
 			for (let tag in tags) {

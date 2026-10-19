@@ -790,7 +790,7 @@ uci.foreach(uciconfig, 'node', (node_cfg) => {
 	let tag = 'cfg-' + sid + '-out';
 	let found = false;
 	for (let ob in config.outbounds) {
-		if (ob.tag === tag) {
+		if (ob.tag === tag || (main_node === sid && ob.tag === 'main-out')) {
 			found = true;
 			break;
 		}
